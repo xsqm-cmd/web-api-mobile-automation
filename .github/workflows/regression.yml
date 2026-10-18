@@ -1,0 +1,63 @@
+name: Web / API / Mobile Regression
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 20 * * *"
+  workflow_dispatch:
+    inputs:
+      env:
+        description: 运行环境
+        default: dev
+        type: choice
+        options: [dev, test, prod]
+
+jobs:
+  api:
+    name: API 回归（本地 mock，稳定不依赖外网）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11", cache: pip}
+      - run: pip install -r requirements.txt
+      - run: pytest tests/api tests/test_framework_selftest.py -m api --html=reports/api.html --self-contained-html
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: {name: api-report, path: reports/}
+
+  web:
+    name: Web 回归（Playwright）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11", cache: pip}
+      - run: pip install -r requirements.txt
+      - run: playwright install --with-deps chromium
+      - run: pytest tests/web -m web --html=reports/web.html --self-contained-html
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: {name: web-report, path: reports/}
+
+  mobile:
+    name: Mobile 冒烟（Android 模拟器）
+    runs-on: macos-latest          # Android 模拟器在 macOS 上更快；Linux 亦可
+    continue-on-error: true        # 移动端环境不稳定，不阻断主流程
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: pip install -r requirements.txt
+      - name: 启动 Appium 并跑冒烟
+        env:
+          MOBILE_ENABLED: "1"
+          APPIUM_SERVER: http://127.0.0.1:4723
+        run: |
+          npm i -g appium
+          appium driver install uiautomator2
+          appium &
+          sleep 10
+          pytest tests/mobile -m mobile -v

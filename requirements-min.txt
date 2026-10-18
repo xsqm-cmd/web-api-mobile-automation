@@ -1,0 +1,5 @@
+# 最小依赖：只想跑接口 + 框架自测时用它（不装 playwright / appium）
+pytest>=7.4
+pytest-html>=4.1
+requests>=2.31
+pyyaml>=6.0
